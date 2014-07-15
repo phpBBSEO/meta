@@ -168,7 +168,7 @@ class listener implements EventSubscriberInterface
 			// Do we allow indexing based on get variable
 			if (empty(\phpbbseo\meta\core::$meta['robots']))
 			{
-				foreach ( \phpbbseo\meta\core::$config['get_filter'] as $get )
+				foreach (\phpbbseo\meta\core::$config['get_filter'] as $get)
 				{
 					if (isset($_GET[$get]))
 					{
