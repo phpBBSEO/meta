@@ -6,16 +6,20 @@
 #
 # You must indent with 4 spaces instead of 1 tab
 #
-services: 
-    phpbbseo.meta.listener:
-        class: phpbbseo\meta\event\listener
+services:
+    phpbbseo.meta.core:
+        class: phpbbseo\meta\core
         arguments:
             - @config
             - @template
             - @user
-            - @dbal.conn
+            - @symfony_request
             - %core.root_path%
-            - %core.php_ext%
+            - %core.php_ext% 
+    phpbbseo.meta.listener:
+        class: phpbbseo\meta\event\listener
+        arguments:
+            - @phpbbseo.meta.core
+            - @dbal.conn
         tags:
             - { name: event.listener }
-
