@@ -15,7 +15,8 @@ services:
             - @user
             - @symfony_request
             - %core.root_path%
-            - %core.php_ext% 
+            - %core.php_ext%
+
     phpbbseo.meta.listener:
         class: phpbbseo\meta\event\listener
         arguments:
