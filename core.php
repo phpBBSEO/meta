@@ -290,7 +290,7 @@ class core
 
 		if (!$return)
 		{
-			$this->template->assign_var('META_TAGS', $meta_code);
+			$this->template->assign_var('SEO_META_TAGS', $meta_code);
 		}
 		else
 		{
