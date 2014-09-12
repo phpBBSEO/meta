@@ -22,5 +22,6 @@ services:
         arguments:
             - @phpbbseo.meta.core
             - @dbal.conn
+            - @?phpbbseo.usu.core
         tags:
             - { name: event.listener }
