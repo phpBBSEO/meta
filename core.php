@@ -316,18 +316,10 @@ class core
 				$is_set = false;
 				$value = '';
 
-				if (isset($this->meta[$alias]))
+				if ($type !== 'meta')
 				{
-					$is_set = true;
-					$value = $this->meta[$alias];
-				}
-				else if (isset($this->meta[$original]))
-				{
-					$is_set = true;
-					$value = $this->meta[$original];
-				}
-				else if ($type !== 'meta')
-				{
+					// core->collect('og:lang', $content)
+					// core->collect('og:locale', $content)
 					if (isset($this->meta["$type:$alias"]))
 					{
 						$is_set = true;
@@ -343,6 +335,16 @@ class core
 						$is_set = true;
 						$value = $this->config[$alias];
 					}
+				}
+				else if (isset($this->meta[$alias]))
+				{
+					$is_set = true;
+					$value = $this->meta[$alias];
+				}
+				else if (isset($this->meta[$original]))
+				{
+					$is_set = true;
+					$value = $this->meta[$original];
 				}
 
 				// do like this so we can deactivate one particular tag on a given page,
