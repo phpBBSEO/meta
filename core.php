@@ -55,7 +55,9 @@ class core
 		'get_filter'		=> 'style,hilit,sid',
 		// noindex based on physical script file name
 		'file_filter'		=> 'ucp',
-		'og'			=> '1',
+		// open graph (fb)
+		'og'			=> 1,
+		'fb_app_id'		=> '',
 	);
 	/* Limit in chars for the last post link text. */
 	public $char_limit = 25;
@@ -65,6 +67,7 @@ class core
 		'meta'	=> array(
 			// here you can comment a tag line to deactivate it
 			'fields' => array(
+				// local name		=> global alias
 				'content-language'	=> 'lang',
 				'title'			=> 'title',
 				'description'		=> 'description',
@@ -80,13 +83,17 @@ class core
 		'og'	=> array(
 			// here you can comment a tag line to deactivate it
 			'fields'	=> array(
-				'title'			=> 'title',
-				'site_name'		=> 'sitename',
-				'url'			=> 'canonical',
-				'description'		=> 'description',
-				'locale'		=> 'lang',
+				// local name		=> global alias
+				'og:title'		=> 'title',
+				'og:site_name'		=> 'sitename',
+				'og:url'		=> 'canonical',
+				'og:description'	=> 'description',
+				'og:locale'		=> 'lang',
+				// not used atm, but usable with proper image url
+				'og:image'		=> 'image',
+				'fb:app_id'		=> 'fb:app_id',
 			),
-			'mask'		=> '<meta property="og:%1$s" content="%2$s" />',
+			'mask'		=> '<meta property="%1$s" content="%2$s" />',
 			'filters'	=> array(
 				'description'		=> 'meta_filter_og',
 			),
@@ -182,7 +189,10 @@ class core
 			$this->config['file_filter'] = preg_replace('`[\s]+`', '', trim($config['seo_meta_file_filter'], ', '));
 			$this->config['get_filter'] = preg_replace('`[\s]+`', '', trim($config['seo_meta_get_filter'], ', '));
 			$this->config['bbcodestrip'] = str_replace(',', '|', preg_replace('`[\s]+`', '', trim($config['seo_meta_bbcode_filter'], ', ')));
+
+			// open graph (fb)
 			$this->config['og'] = isset($config['seo_meta_og']) ? max(0, (int) $config['seo_meta_og']) : $this->config['og'];
+			$this->config['fb_app_id'] = isset($config['seo_fb_app_id']) ? $config['seo_fb_app_id'] : $this->config['fb_app_id'];
 		}
 		else
 		{
@@ -195,6 +205,9 @@ class core
 			$this->meta['lang'] = $config['default_lang'];
 			$this->meta['copyright'] = $config['sitename'];
 		}
+
+		// open graph (fb)
+		$this->meta_def['fb:app_id'] = $this->config['fb_app_id'];
 
 		$this->config['get_filter'] = !empty($this->config['get_filter']) ? @explode(',', $this->config['get_filter']) : array();
 		$this->config['topic_sql'] = $config['search_type'] == 'fulltext_native' ? $this->config['topic_sql'] : false;
@@ -316,35 +329,40 @@ class core
 				$is_set = false;
 				$value = '';
 
-				if ($type !== 'meta')
+				if (isset($this->meta[$original]))
 				{
-					// core->collect('og:lang', $content)
+					$is_set = true;
+					$value = $this->meta[$original];
+				}
+				else if ($type !== 'meta')
+				{
 					// core->collect('og:locale', $content)
-					if (isset($this->meta["$type:$alias"]))
-					{
-						$is_set = true;
-						$value = $this->meta["$type:$alias"];
-					}
-					else if (isset($this->meta["$type:$original"]))
+					// core->collect('og:lang', $content)
+					// core->collect('lang', $content)
+					if (isset($this->meta["$type:$original"]))
 					{
 						$is_set = true;
 						$value = $this->meta["$type:$original"];
 					}
-					else if (!empty($this->config[$alias]))
+					else if (isset($this->meta["$type:$alias"]))
+					{
+						$is_set = true;
+						$value = $this->meta["$type:$alias"];
+					}
+				}
+
+				if (!$is_set)
+				{
+					if (isset($this->meta[$alias]))
+					{
+						$is_set = true;
+						$value = $this->meta[$alias];
+					}
+					else if (isset($this->config[$alias]))
 					{
 						$is_set = true;
 						$value = $this->config[$alias];
 					}
-				}
-				else if (isset($this->meta[$alias]))
-				{
-					$is_set = true;
-					$value = $this->meta[$alias];
-				}
-				else if (isset($this->meta[$original]))
-				{
-					$is_set = true;
-					$value = $this->meta[$original];
 				}
 
 				// do like this so we can deactivate one particular tag on a given page,
