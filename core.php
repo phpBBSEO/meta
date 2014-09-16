@@ -89,7 +89,6 @@ class core
 				'og:url'		=> 'canonical',
 				'og:description'	=> 'description',
 				'og:locale'		=> 'lang',
-				// not used atm, but usable with proper image url
 				'og:image'		=> 'image',
 				'fb:app_id'		=> 'fb:app_id',
 			),

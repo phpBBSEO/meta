@@ -91,9 +91,24 @@ class listener implements EventSubscriberInterface
 		{
 			$row = $event['row'];
 			$topic_data = $event['topic_data'];
-			$message = censor_text($row['post_text']);
+
+			$this->core->collect('description', censor_text($row['post_text']));
+
+			if ($this->core->config['og'])
+			{
+				$post_row = $event['post_row'];
+				$message = $post_row['MESSAGE'];
+
+				if (strpos($message, '<img') !== false)
+				{
+					if (preg_match('`<img[^>]*src="(https?://[^"]+)"[^>]*>`Us', $message, $matches))
+					{
+						$this->core->collect('image', $matches[1]);
+					}
+				}
+			}
+
 			$m_kewrd = '';
-			$this->core->collect('description', $message);
 			if ($this->core->config['topic_sql'])
 			{
 				$common_sql = $this->core->config['bypass_common'] ? '' : 'AND w.word_common = 0';
