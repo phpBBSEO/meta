@@ -236,13 +236,15 @@ class core
 	*/
 	public function collect($type, $content = '', $combine = false)
 	{
+		$content = $this->soft_escape((string) $content);
+
 		if ($combine)
 		{
-			$this->meta[$type] = (isset($this->meta[$type]) ? $this->meta[$type] . ' ' : '') . (string) $content;
+			$this->meta[$type] = (isset($this->meta[$type]) ? $this->meta[$type] . ' ' : '') . $content;
 		}
 		else
 		{
-			$this->meta[$type] = (string) $content;
+			$this->meta[$type] = $content;
 		}
 	}
 
@@ -397,15 +399,15 @@ class core
 	/**
 	* Returns a coma separated keyword list
 	*/
-	public function make_keywords($text, $decode_entities = false)
+	public function make_keywords($text)
 	{
 		// we add ’ to the num filter because it does not seems to always be cought by punct
 		// and it is widely used in languages files
-		static $filter = array('`&(amp;)?[^;]+;`i', '`[[:punct:]]+`', '`[0-9’]+`',  '`[\s]+`');
+		static $filter = array('`<[^>]*>(.*<[^>]*>)?`Usi', '`[[:punct:]]+`', '`[0-9’]+`',  '`[\s]{2,}`');
 
 		$keywords = '';
 		$num = 0;
-		$text = $decode_entities ? html_entity_decode(strip_tags($text), ENT_COMPAT, 'UTF-8') : strip_tags($text);
+
 		$text = utf8_strtolower(trim(preg_replace($filter, ' ', $text)));
 
 		if (!$text)
@@ -477,7 +479,7 @@ class core
 
 		if (empty($RegEx))
 		{
-			$RegEx = array('`&(amp;)?[^;]+;`i', // HTML entitites
+			$RegEx = array(
 				'`<[^>]*>(.*<[^>]*>)?`Usi', // HTML code
 			);
 
@@ -505,5 +507,14 @@ class core
 	{
 		$wordlimit = max((int) $wordlimit, $this->config['wordlimit']);
 		return count($words = preg_split('/\s+/', ltrim($string), $wordlimit + 1)) > $wordlimit ? rtrim(utf8_substr($string, 0, utf8_strlen($string) - utf8_strlen(end($words)))) . $this->config['ellipsis'] : $string;
+	}
+
+	/**
+	* same as htmlspecialchars but without "&" double encoding
+	*/
+	public static function soft_escape($string)
+	{
+		static $find = array('<', '>', '"'), $replace = array('&lt;', '&gt;', '&quot;');
+		return str_replace($find, $replace, preg_replace('`&(?!([a-z0-9]+;))`', '&amp;', $string));
 	}
 }
