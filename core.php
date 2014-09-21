@@ -42,46 +42,73 @@ class core
 	* => http://www.phpbb-seo.com/fr/mod-rewrite-phpbb/ultimate-seo-url-t4489.html (fr)
 	**/
 	public $config = array(
-		'keywordlimit' => 15,
-		'wordlimit' => 25,
-		'wordminlen' => 2,
-		'bbcodestrip' => 'img|url|flash|code',
-		'ellipsis' => ' ...',
-		'topic_sql' => true,
-		'check_ignore' => false,
-		'bypass_common' => true,
+		'keywordlimit'		=> 15,
+		'wordlimit'		=> 25,
+		'wordminlen'		=> 2,
+		'bbcodestrip'		=> 'img|url|flash|code',
+		'ellipsis'		=> ' ...',
+		'topic_sql'		=> true,
+		'check_ignore'		=> false,
+		'bypass_common'		=> true,
 		// Consider adding ", 'p' => 1" if your forum is no indexed yet or if no post urls are to be redirected
 		// to add a noindex tag on post urls
-		'get_filter' => 'style,hilit,sid',
+		'get_filter'		=> 'style,hilit,sid',
 		// noindex based on physical script file name
-		'file_filter' => 'ucp',
+		'file_filter'		=> 'ucp',
+		// open graph (fb)
+		'og'			=> 1,
+		'fb_app_id'		=> '',
 	);
 	/* Limit in chars for the last post link text. */
 	public $char_limit = 25;
 
-	// here you can comment a tag line to deactivate it
-	public $tpl = array(
-		'lang' => '<meta name="content-language" content="%s" />',
-		'title' => '<meta name="title" content="%s" />',
-		'description' => '<meta name="description" content="%s" />',
-		'keywords' => '<meta name="keywords" content="%s" />',
-		'category' => '<meta name="category" content="%s" />',
-		'robots' => '<meta name="robots" content="%s" />',
-		'distribution' => '<meta name="distribution" content="%s" />',
-		'resource-type' => '<meta name="resource-type" content="%s" />',
-		'copyright' => '<meta name="copyright" content="%s" />',
+
+	public $tags = array(
+		'meta'	=> array(
+			// here you can comment a tag line to deactivate it
+			'fields' => array(
+				// local name		=> global alias
+				'content-language'	=> 'lang',
+				'title'			=> 'title',
+				'description'		=> 'description',
+				'keywords'		=> 'keywords',
+				'category'		=> 'category',
+				'robots'		=> 'robots',
+				'distribution'		=> 'distribution',
+				'resource-type'		=> 'resource-type',
+				'copyright'		=> 'copyright',
+			),
+			'mask' => '<meta name="%1$s" content="%2$s" />',
+		),
+		'og'	=> array(
+			// here you can comment a tag line to deactivate it
+			'fields'	=> array(
+				// local name		=> global alias
+				'og:title'		=> 'title',
+				'og:site_name'		=> 'sitename',
+				'og:url'		=> 'canonical',
+				'og:description'	=> 'description',
+				'og:locale'		=> 'lang',
+				'og:image'		=> 'image',
+				'fb:app_id'		=> 'fb:app_id',
+			),
+			'mask'		=> '<meta property="%1$s" content="%2$s" />',
+			'filters'	=> array(
+				'description'		=> 'meta_filter_og',
+			),
+		),
 	);
 
 	public $meta = array(
-		'title' => '',
-		'description' => '',
-		'keywords' => '',
-		'lang' => '',
-		'category' => '',
-		'robots' => '',
-		'distribution' => '',
-		'resource-type' => '',
-		'copyright' => '',
+		'title'			=> '',
+		'description'		=> '',
+		'keywords'		=> '',
+		'lang'			=> '',
+		'category'		=> '',
+		'robots'		=> '',
+		'distribution'		=> '',
+		'resource-type'		=> '',
+		'copyright'		=> '',
 	);
 
 	public $meta_def = array();
@@ -107,7 +134,10 @@ class core
 	*/
 	protected $php_ext;
 
-	protected $filters = array('description' => 'meta_filter_txt', 'keywords' => 'make_keywords');
+	protected $filters = array(
+		'description'		=> 'meta_filter_txt',
+		'keywords'		=> 'make_keywords'
+	);
 
 	/**
 	* Constructor
@@ -158,6 +188,10 @@ class core
 			$this->config['file_filter'] = preg_replace('`[\s]+`', '', trim($config['seo_meta_file_filter'], ', '));
 			$this->config['get_filter'] = preg_replace('`[\s]+`', '', trim($config['seo_meta_get_filter'], ', '));
 			$this->config['bbcodestrip'] = str_replace(',', '|', preg_replace('`[\s]+`', '', trim($config['seo_meta_bbcode_filter'], ', ')));
+
+			// open graph (fb)
+			$this->config['og'] = isset($config['seo_meta_og']) ? max(0, (int) $config['seo_meta_og']) : $this->config['og'];
+			$this->config['fb_app_id'] = isset($config['seo_fb_app_id']) ? $config['seo_fb_app_id'] : $this->config['fb_app_id'];
 		}
 		else
 		{
@@ -171,8 +205,28 @@ class core
 			$this->meta['copyright'] = $config['sitename'];
 		}
 
+		// open graph (fb)
+		$this->meta_def['fb:app_id'] = $this->config['fb_app_id'];
+
 		$this->config['get_filter'] = !empty($this->config['get_filter']) ? @explode(',', $this->config['get_filter']) : array();
 		$this->config['topic_sql'] = $config['search_type'] == 'fulltext_native' ? $this->config['topic_sql'] : false;
+
+		// set up tags
+		foreach ($this->tags as $type => $setup)
+		{
+			if ($type !== 'meta' && empty($this->config[$type]))
+			{
+				unset($this->tags[$type]);
+				continue;
+			}
+
+			$tpl = array();
+			foreach ($setup['fields'] as $field => $alias)
+			{
+				$tpl[$alias] = sprintf($setup['mask'], $field, '%1$s');
+			}
+			$this->tags[$type]['tpl'] = $tpl;
+		}
 	}
 
 	/**
@@ -266,26 +320,68 @@ class core
 
 		$meta_code = '';
 
-		foreach ($this->tpl as $key => $value)
+		foreach ($this->tags as $type => $setup)
 		{
-			if (isset($this->meta[$key]))
+
+			foreach ($setup['fields'] as $original => $alias)
 			{
+				$is_set = false;
+				$value = '';
+
+				if (isset($this->meta[$original]))
+				{
+					$is_set = true;
+					$value = $this->meta[$original];
+				}
+				else if ($type !== 'meta')
+				{
+					// core->collect('og:locale', $content)
+					// core->collect('og:lang', $content)
+					// core->collect('lang', $content)
+					if (isset($this->meta["$type:$original"]))
+					{
+						$is_set = true;
+						$value = $this->meta["$type:$original"];
+					}
+					else if (isset($this->meta["$type:$alias"]))
+					{
+						$is_set = true;
+						$value = $this->meta["$type:$alias"];
+					}
+				}
+
+				if (!$is_set)
+				{
+					if (isset($this->meta[$alias]))
+					{
+						$is_set = true;
+						$value = $this->meta[$alias];
+					}
+					else if (isset($this->config[$alias]))
+					{
+						$is_set = true;
+						$value = $this->config[$alias];
+					}
+				}
+
 				// do like this so we can deactivate one particular tag on a given page,
 				// by just setting the meta to an empty string
-				if (trim($this->meta[$key]))
+				if (!$is_set && !empty($this->meta_def[$alias]))
 				{
-					$this->meta[$key] = isset($this->filters[$key]) ? $this->{$this->filters[$key]}($this->meta[$key]) : $this->meta[$key];
+					$value = isset($this->filters[$alias]) ? $this->{$this->filters[$alias]}($this->meta_def[$alias]) : $this->meta_def[$alias];
+				}
+
+				if (trim($value))
+				{
+					$filter_method = isset($setup['filters'][$alias]) ? $setup['filters'][$alias] : (isset($this->filters[$alias]) ? $this->filters[$alias] : false);
+					if ($filter_method)
+					{
+						$value = $this->$filter_method($value);
+					}
+					$meta_code .= sprintf($setup['tpl'][$alias], utf8_htmlspecialchars($value)) . "\n";
 				}
 			}
-			else if (!empty($this->meta_def[$key]))
-			{
-				$this->meta[$key] = isset($this->filters[$key]) ? $this->{$this->filters[$key]}($this->meta_def[$key]) : $this->meta_def[$key];
-			}
-
-			if (trim($this->meta[$key]))
-			{
-				$meta_code .= sprintf($value, utf8_htmlspecialchars($this->meta[$key])) . "\n";
-			}
+			$meta_code .= "\n";
 		}
 
 		if (!$return)
@@ -363,46 +459,51 @@ class core
 	}
 
 	/**
+	* Same as meta_filter_txt but longer
+	*/
+	public function meta_filter_og($text)
+	{
+		return $this->meta_filter_txt($text, floor($this->config['wordlimit'] * 2));
+	}
+
+	/**
 	* Filter php/html tags and white spaces and string with limit in words
 	*/
-	public function meta_filter_txt($text, $bbcode = true)
+	public function meta_filter_txt($text, $wordlimit = 0)
 	{
-		if ($bbcode)
+		static $RegEx = array();
+
+		$wordlimit = max((int) $wordlimit, $this->config['wordlimit']);
+
+		if (empty($RegEx))
 		{
-			static $RegEx = array();
-			static $replace = array();
+			$RegEx = array('`&(amp;)?[^;]+;`i', // HTML entitites
+				'`<[^>]*>(.*<[^>]*>)?`Usi', // HTML code
+			);
 
-			if (empty($RegEx))
+			if (!empty($this->config['bbcodestrip']))
 			{
-				$RegEx = array('`&(amp;)?[^;]+;`i', // HTML entitites
-					'`<[^>]*>(.*<[^>]*>)?`Usi', // HTML code
-				);
-				$replace = array(' ', ' ');
-				if (!empty($this->config['bbcodestrip']))
-				{
-					$RegEx[] = '`\[(' . $this->config['bbcodestrip'] . ')[^\[\]]*\].*\[/\1[^\[\]]*\]`Usi'; // bbcode to strip
-					$replace[] = ' ';
-				}
-
-				$RegEx[] = '`\[\/?[a-z0-9\*\+\-]+(?:=(?:&quot;.*&quot;|[^\]]*))?(?::[a-z])?(\:[0-9a-z]{5,})\]`'; // Strip all bbcode tags
-				$replace[] = '';
-
-				$RegEx[] = '`[\s]+`'; // Multiple spaces
-				$replace[] = ' ';
+				$RegEx[] = '`\[(' . $this->config['bbcodestrip'] . ')[^\[\]]*\].*\[/\1[^\[\]]*\]`Usi'; // bbcode to strip
 			}
 
-			return $this->word_limit(preg_replace($RegEx, $replace, $text));
+			$RegEx[] = '`\[\/?[a-z0-9\*\+\-]+(?:=(?:&quot;.*&quot;|[^\]]*))?(?::[a-z])?(\:[0-9a-z]{5,})\]`'; // Strip all bbcode tags
+
+			$RegEx[] = "`[\n]{2,}`"; // Empty lines
+
+			$RegEx[] = '`[\s]{2,}`'; // Multiple ws left
+
 		}
 
-		return $this->word_limit(preg_replace(array('`<[^>]*>(.*<[^>]*>)?`Usi', '`\[\/?[a-z0-9\*\+\-]+(?:=(?:&quot;.*&quot;|[^\]]*))?(?::[a-z])?(\:[0-9a-z]{5,})\]`', '`[\s]+`'), ' ', $text));
+		return $this->word_limit(trim(preg_replace($RegEx, ' ', $text)), $wordlimit);
 	}
 
 	/**
 	* Cut the text according to the number of words.
 	* Borrowed from www.php.net http://www.php.net/preg_replace
 	*/
-	public function word_limit($string)
+	public function word_limit($string, $wordlimit = 0)
 	{
-		return count($words = preg_split('/\s+/', ltrim($string), $this->config['wordlimit'] + 1)) > $this->config['wordlimit'] ? rtrim(utf8_substr($string, 0, utf8_strlen($string) - utf8_strlen(end($words)))) . $this->config['ellipsis'] : $string;
+		$wordlimit = max((int) $wordlimit, $this->config['wordlimit']);
+		return count($words = preg_split('/\s+/', ltrim($string), $wordlimit + 1)) > $wordlimit ? rtrim(utf8_substr($string, 0, utf8_strlen($string) - utf8_strlen(end($words)))) . $this->config['ellipsis'] : $string;
 	}
 }

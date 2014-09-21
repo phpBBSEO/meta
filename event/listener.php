@@ -27,16 +27,21 @@ class listener implements EventSubscriberInterface
 	/* @var \phpbb\db\driver\driver_interface */
 	protected $db;
 
+	/** @var \phpbbseo\usu\core */
+	protected $usu_core;
+
 	/**
 	* Constructor
 	*
-	* @param \phpbbseo\meta\core				$core				meta core object
-	* @param \phpbb\db\driver\driver_interface		$db				Database object
+	* @param \phpbbseo\meta\core			$core				meta core object
+	* @param \phpbb\db\driver\driver_interface	$db				Database object
+	* @param \phpbbseo\usu\core			$usu_core			usu core objec
 	*/
-	public function __construct(\phpbbseo\meta\core $core, \phpbb\db\driver\driver_interface $db)
+	public function __construct(\phpbbseo\meta\core $core, \phpbb\db\driver\driver_interface $db, \phpbbseo\usu\core $usu_core = null)
 	{
 		$this->core = $core;
 		$this->db = $db;
+		$this->usu_core = $usu_core;
 	}
 
 	static public function getSubscribedEvents()
@@ -46,18 +51,26 @@ class listener implements EventSubscriberInterface
 			'core.index_modify_page_title'		=> 'core_index_modify_page_title',
 			'core.viewforum_modify_topics_data'	=> 'core_viewforum_modify_topics_data',
 			'core.viewtopic_modify_post_row'	=> 'core_viewtopic_modify_post_row',
+			'core.page_header'			=> 'core_page_header',
 		);
+	}
+
+	public function core_page_header($event)
+	{
+		$this->core->collect('title', $event['page_title']);
 	}
 
 	public function core_page_footer($event)
 	{
-
-		$this->core->build_meta($event['page_title']);
+		if (!empty($this->usu_core))
+		{
+			$this->core->meta['canonical'] = $this->usu_core->get_canonical();
+		}
+		$this->core->build_meta();
 	}
 
 	public function core_index_modify_page_title($event)
 	{
-
 		$this->core->collect('description', $this->core->config['sitename'] . ' : ' .  $this->core->config['site_desc']);
 		$this->core->collect('keywords', $this->core->config['sitename'] . ' ' . $this->core->meta['description']);
 	}
@@ -78,9 +91,24 @@ class listener implements EventSubscriberInterface
 		{
 			$row = $event['row'];
 			$topic_data = $event['topic_data'];
-			$message = censor_text($row['post_text']);
+
+			$this->core->collect('description', censor_text($row['post_text']));
+
+			if ($this->core->config['og'])
+			{
+				$post_row = $event['post_row'];
+				$message = $post_row['MESSAGE'];
+
+				if (strpos($message, '<img') !== false)
+				{
+					if (preg_match('`<img[^>]*src="(https?://[^"]+)"[^>]*>`Us', $message, $matches))
+					{
+						$this->core->collect('image', $matches[1]);
+					}
+				}
+			}
+
 			$m_kewrd = '';
-			$this->core->collect('description', $message);
 			if ($this->core->config['topic_sql'])
 			{
 				$common_sql = $this->core->config['bypass_common'] ? '' : 'AND w.word_common = 0';
